@@ -565,4 +565,3 @@ so the API always returns a number, never null.
 - Unit and integration tests
 - Rate limiting
 - API documentation via Swagger
-

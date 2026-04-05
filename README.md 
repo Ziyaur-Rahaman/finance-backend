@@ -1,0 +1,568 @@
+# Finance Dashboard Backend
+
+A REST API backend for a finance dashboard system built with Node.js, Express, and SQLite.
+
+---
+
+## Tech Stack
+
+| Technology     | Purpose                        |
+|----------------|-------------------------------|
+| Node.js        | Runtime environment            |
+| Express.js     | Web framework                  |
+| SQLite         | Database                       |
+| better-sqlite3 | SQLite driver                  |
+| bcryptjs       | Password hashing               |
+| jsonwebtoken   | JWT authentication             |
+| dotenv         | Environment variable management|
+
+---
+
+## Project Structure
+```
+finance-backend/
+├── src/
+│   ├── config/
+│   │   ├── database.js          # SQLite connection
+│   │   ├── initDb.js            # Creates tables on startup
+│   │   └── seed.js              # Creates default admin user
+│   ├── middleware/
+│   │   ├── auth.js              # JWT verification
+│   │   └── role.js              # Role based access control
+│   ├── routes/
+│   │   ├── authRoutes.js        # /api/auth
+│   │   ├── userRoutes.js        # /api/users
+│   │   ├── recordRoutes.js      # /api/records
+│   │   └── dashboardRoutes.js   # /api/dashboard
+│   ├── controllers/
+│   │   ├── authController.js
+│   │   ├── userController.js
+│   │   ├── recordController.js
+│   │   └── dashboardController.js
+│   ├── models/
+│   │   ├── userModel.js
+│   │   ├── recordModel.js
+│   │   └── dashboardModel.js
+│   └── utils/
+│       └── response.js          # Consistent API response format
+├── .env
+├── server.js
+└── database.db                  # Auto created on first run
+```
+
+---
+
+## Setup Instructions
+
+### 1. Clone the repository
+```bash
+git clone <your-repo-url>
+cd finance-backend
+```
+
+### 2. Install dependencies
+```bash
+npm install
+```
+
+### 3. Create the `.env` file
+
+Create a `.env` file in the root of the project:
+```
+PORT=3000
+JWT_SECRET=mysupersecretkey123
+```
+
+### 4. Start the server
+```bash
+# Development (auto restart on changes)
+npm run dev
+
+# Production
+npm start
+```
+
+### 5. First run output
+```
+✅ Database tables ready
+✅ Default admin created
+   Email: admin@company.com
+   Password: admin123
+Server running on port 3000
+```
+
+The database file and all tables are created automatically on first run.
+The default admin account is seeded automatically.
+
+---
+
+## Default Admin Credentials
+```
+Email:    admin@company.com
+Password: admin123
+```
+
+> Change these credentials immediately in a production environment.
+
+---
+
+## Authentication
+
+This API uses JWT (JSON Web Token) based authentication.
+
+### How it works
+
+1. Login via `POST /api/auth/login`
+2. Receive a token in the response
+3. Include the token in every subsequent request header:
+```
+Authorization: Bearer <your_token>
+```
+
+Tokens expire after 24 hours. Login again to get a new token.
+
+---
+
+## Roles and Permissions
+
+| Action                  | Viewer | Analyst | Admin |
+|-------------------------|--------|---------|-------|
+| Login                   | ✅     | ✅      | ✅    |
+| View records            | ✅     | ✅      | ✅    |
+| View dashboard          | ✅     | ✅      | ✅    |
+| Create record           | ❌     | ✅      | ✅    |
+| Edit record             | ❌     | ✅      | ✅    |
+| Delete record           | ❌     | ❌      | ✅    |
+| View all users          | ❌     | ❌      | ✅    |
+| Change user role        | ❌     | ❌      | ✅    |
+| Activate/deactivate user| ❌     | ❌      | ✅    |
+
+New users who register are assigned the **Viewer** role by default.
+Only an Admin can promote users to Analyst or Admin.
+
+---
+
+## API Reference
+
+### Auth
+
+#### Register
+```
+POST /api/auth/register
+
+Body:
+{
+  "name": "Rahul",
+  "email": "rahul@gmail.com",
+  "password": "secret123"
+}
+
+Response 201:
+{
+  "success": true,
+  "data": {
+    "message": "Registration successful",
+    "userId": 2
+  }
+}
+```
+
+#### Login
+```
+POST /api/auth/login
+
+Body:
+{
+  "email": "rahul@gmail.com",
+  "password": "secret123"
+}
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "message": "Login successful",
+    "token": "eyJhbGci...",
+    "user": {
+      "id": 2,
+      "name": "Rahul",
+      "email": "rahul@gmail.com",
+      "role": "viewer"
+    }
+  }
+}
+```
+
+---
+
+### Users (Admin only)
+
+#### Get all users
+```
+GET /api/users
+Authorization: Bearer <token>
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "users": [
+      {
+        "id": 1,
+        "name": "Super Admin",
+        "email": "admin@company.com",
+        "role": "admin",
+        "is_active": 1,
+        "created_at": "2026-04-05 10:00:00"
+      }
+    ]
+  }
+}
+```
+
+#### Get single user
+```
+GET /api/users/:id
+Authorization: Bearer <token>
+```
+
+#### Change user role
+```
+PATCH /api/users/:id/role
+Authorization: Bearer <token>
+
+Body:
+{
+  "role": "analyst"
+}
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "message": "User role updated to analyst",
+    "userId": 2,
+    "newRole": "analyst"
+  }
+}
+```
+
+#### Activate or deactivate user
+```
+PATCH /api/users/:id/status
+Authorization: Bearer <token>
+
+Body:
+{
+  "is_active": false
+}
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "message": "User account deactivated successfully",
+    "userId": 2,
+    "is_active": false
+  }
+}
+```
+
+---
+
+### Financial Records
+
+#### Get all records
+```
+GET /api/records
+Authorization: Bearer <token>
+
+Optional query filters:
+  ?type=income
+  ?type=expense
+  ?category=Salary
+  ?start_date=2026-01-01
+  ?end_date=2026-04-30
+
+These filters can be combined:
+  ?type=expense&category=Food&start_date=2026-01-01
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "count": 6,
+    "records": [...]
+  }
+}
+```
+
+#### Get single record
+```
+GET /api/records/:id
+Authorization: Bearer <token>
+```
+
+#### Create record (Analyst and Admin)
+```
+POST /api/records
+Authorization: Bearer <token>
+
+Body:
+{
+  "amount": 50000,
+  "type": "income",
+  "category": "Salary",
+  "date": "2026-04-01",
+  "notes": "April salary"
+}
+
+Rules:
+- amount must be a positive number
+- type must be income or expense
+- date must be in YYYY-MM-DD format
+- notes is optional
+
+Response 201:
+{
+  "success": true,
+  "data": {
+    "message": "Record created successfully",
+    "record": { ... }
+  }
+}
+```
+
+#### Update record (Analyst and Admin)
+```
+PATCH /api/records/:id
+Authorization: Bearer <token>
+
+Body (all fields optional, send only what you want to change):
+{
+  "amount": 55000,
+  "notes": "Revised salary"
+}
+```
+
+#### Delete record (Admin only)
+```
+DELETE /api/records/:id
+Authorization: Bearer <token>
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "message": "Record deleted successfully",
+    "recordId": 1
+  }
+}
+```
+
+---
+
+### Dashboard
+
+#### Summary
+```
+GET /api/dashboard/summary
+Authorization: Bearer <token>
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "total_income": 100000,
+    "total_expenses": 25000,
+    "net_balance": 75000,
+    "total_records": 6,
+    "status": "surplus"
+  }
+}
+```
+
+#### Category breakdown
+```
+GET /api/dashboard/category-breakdown
+Authorization: Bearer <token>
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "income_categories": [
+      { "category": "Salary", "type": "income", "total": 100000, "count": 2 }
+    ],
+    "expense_categories": [
+      { "category": "Rent", "type": "expense", "total": 15000, "count": 1 },
+      { "category": "Food", "type": "expense", "total": 5000,  "count": 2 }
+    ]
+  }
+}
+```
+
+#### Monthly trends
+```
+GET /api/dashboard/monthly-trends
+Authorization: Bearer <token>
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "trends": [
+      {
+        "month": "2026-01",
+        "income": 50000,
+        "expenses": 15000,
+        "net_balance": 35000,
+        "total_records": 2
+      },
+      {
+        "month": "2026-02",
+        "income": 50000,
+        "expenses": 3000,
+        "net_balance": 47000,
+        "total_records": 2
+      }
+    ]
+  }
+}
+```
+
+#### Recent transactions
+```
+GET /api/dashboard/recent
+GET /api/dashboard/recent?limit=5
+Authorization: Bearer <token>
+
+Default limit: 10
+Maximum limit: 50
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "count": 10,
+    "transactions": [...]
+  }
+}
+```
+
+---
+
+## Error Responses
+
+All error responses follow this format:
+```json
+{
+  "success": false,
+  "message": "Description of what went wrong"
+}
+```
+
+### HTTP Status Codes used
+
+| Code | Meaning                              |
+|------|--------------------------------------|
+| 200  | Success                              |
+| 201  | Resource created successfully        |
+| 400  | Bad request / validation error       |
+| 401  | Not authenticated / invalid token    |
+| 403  | Authenticated but not authorized     |
+| 404  | Resource not found                   |
+| 409  | Conflict (e.g. email already exists) |
+| 500  | Internal server error                |
+
+---
+
+## Data Models
+
+### Users table
+
+| Column     | Type    | Description                        |
+|------------|---------|------------------------------------|
+| id         | INTEGER | Primary key, auto increment        |
+| name       | TEXT    | Full name                          |
+| email      | TEXT    | Unique email address               |
+| password   | TEXT    | Bcrypt hashed password             |
+| role       | TEXT    | viewer, analyst, or admin          |
+| is_active  | INTEGER | 1 = active, 0 = deactivated        |
+| created_at | TEXT    | Timestamp of account creation      |
+
+### Financial Records table
+
+| Column     | Type    | Description                        |
+|------------|---------|------------------------------------|
+| id         | INTEGER | Primary key, auto increment        |
+| amount     | REAL    | Positive decimal number            |
+| type       | TEXT    | income or expense                  |
+| category   | TEXT    | e.g. Salary, Rent, Food            |
+| date       | TEXT    | Date in YYYY-MM-DD format          |
+| notes      | TEXT    | Optional description               |
+| created_by | INTEGER | Foreign key referencing users.id   |
+| created_at | TEXT    | Timestamp of record creation       |
+
+---
+
+## Assumptions Made
+
+1. **Shared financial records** — All financial records belong to the organization,
+   not individual users. Any authorized user can view all records.
+
+2. **First admin via seed** — The first admin account is created automatically
+   when the server starts for the first time. There is no public API to create an admin.
+
+3. **New users default to viewer** — Anyone who registers through the public
+   register API gets the viewer role. Only an admin can promote them.
+
+4. **Soft deactivation** — Users are never deleted from the database.
+   They are deactivated using the is_active flag. This preserves data integrity
+   since records reference users via foreign key.
+
+5. **Records are never truly deleted** — Deleted records are permanently removed.
+   A future improvement would be soft delete with a deleted_at column.
+
+6. **Amount is always positive** — The type field (income or expense) determines
+   the direction of the money. Amount itself is always a positive number.
+
+7. **Date is stored as text** — SQLite has no native date type. Dates are stored
+   as YYYY-MM-DD strings which sort correctly alphabetically.
+
+---
+
+## Design Decisions
+
+### Why SQLite?
+Simple file based setup with no external database server required.
+Perfect for this scale of application and easy to run locally.
+
+### Why better-sqlite3?
+Synchronous API that fits naturally with Express without needing async/await
+for every database call. Simpler and faster for this use case.
+
+### Why JWT?
+Stateless authentication. The server does not need to store sessions.
+The token carries the user's identity and role, verified on every request.
+
+### Why separate model layer?
+All database queries live in model files. Controllers never write raw SQL.
+This makes the code easier to maintain and test independently.
+
+### Why COALESCE in summary queries?
+If no records exist, SUM returns NULL. COALESCE converts NULL to 0
+so the API always returns a number, never null.
+
+---
+
+## Future Improvements
+
+- Pagination for records list
+- Search records by notes or category keyword
+- Soft delete for financial records
+- Refresh token support
+- Unit and integration tests
+- Rate limiting
+- API documentation via Swagger
+
